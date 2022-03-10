@@ -7,9 +7,9 @@
 pub mod args;
 /// Error
 pub mod error;
-/// Stratum mining protocol types
+/// Stratum mining protocol types.
 pub mod query;
-/// Request periodically new data to server by using stratum protocol
+/// Request periodically new data to server by using stratum protocol.
 pub mod req;
 
 use clap::Parser;
