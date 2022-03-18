@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use miniserde::{Deserialize, Serialize};
 
 /// Client to server
 #[derive(Debug, Serialize, Deserialize)]
@@ -53,12 +53,14 @@ impl std::str::FromStr for Method {
 
 #[allow(missing_docs)]
 pub trait PingQuery<R> {
+    type Err;
     type Output;
-    fn ping(&self) -> Self::Output;
+    fn ping(&self) -> std::result::Result<Self::Output, Self::Err>;
 }
 
 #[allow(missing_docs)]
 pub trait PingMultQuery<R> {
+    type Err;
     type Output;
-    fn ping_multiple(&self) -> Self::Output;
+    fn ping_multiple(&self) -> std::result::Result<Self::Output, Self::Err>;
 }

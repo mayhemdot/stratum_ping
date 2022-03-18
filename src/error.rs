@@ -6,16 +6,16 @@ pub enum Error {
     /// An error returned when The given URL is invalid.
     URL(ParseUrlError),
     /// An error which can be returned when total request limit exceeded.
-    InvalidCountReplies,
+    InvalidNumberOfReplies,
     /// An error which can be returned when tnvalid stratum type specified.
     InvalidStratumType,
-    /// A standard I/O error occurred.
+    /// An `io::Error` that occurred while trying to read or write to a network stream
     Io(std::io::Error),
     /// A standard `native_tls` error occurred.
     TLS(native_tls::Error),
-    /// An error returned from `native_tls`.
+    /// Error occurs when the server are unable to establish a secure connection.
     HandshakeTLSOverTCP(native_tls::HandshakeError<TcpStream>),
-    /// A standard ParseIntError error occurred.
+    /// An error which can be returned when parsing an integer.
     ParseInt(std::num::ParseIntError),
 }
 
@@ -62,10 +62,10 @@ impl Display for ParseUrlError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use ParseUrlError::*;
         match self {
-            EmptyHost => write!(f, "empty host"),
-            EmptyPort => write!(f, "empty port number"),
-            InvalidPort(s) => write!(f, "invalid port number: {}", s),
-            InvalidHost(s) => write!(f, "invalid host name: {}", s),
+            EmptyHost => write!(f, "Empty host name"),
+            EmptyPort => write!(f, "Empty port number"),
+            InvalidPort(s) => write!(f, "Invalid port number: {}", s),
+            InvalidHost(s) => write!(f, "Invalid host name: {}", s),
         }
     }
 }
@@ -75,7 +75,7 @@ impl Display for Error {
         use Error::*;
         match self {
             InvalidStratumType => write!(f, "Invalid stratum protocol version specified"),
-            InvalidCountReplies => write!(f, "Invalid count replies specified"),
+            InvalidNumberOfReplies => write!(f, "Invalid the number of requests per timeframe"),
             URL(s) => write!(f, "{}", s),
             TLS(e) => write!(f, "{}", e),
             Io(e) => write!(f, "{}", e),
