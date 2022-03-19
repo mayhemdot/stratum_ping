@@ -9,7 +9,7 @@ pub mod error;
 pub mod opts;
 /// Stratum mining protocol types
 pub mod query;
-/// R|W new data to server by using stratum protocol
+/// R/W data to server
 pub mod req;
 
 use clap::Parser;

@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 clap = {version="3.1.6",features=["derive"] }
 native-tls = "0.2.8"
-miniserde = {version="^0.1.24"}
+miniserde ="0.1.24"
 
 
 [profile.release]

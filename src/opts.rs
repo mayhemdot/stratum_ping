@@ -12,9 +12,9 @@ pub struct Opts {
     /// Most pools don't require password.
     #[clap(short = 'p', long, default_value = "x")]
     pub(crate) pass: String,
-    /// The number of pings that determine the response time.
+    /// The number of request that determine the average response time.
     #[clap(short, long, default_value_t = 5)]
-    pub(crate) attempts: usize,
+    pub(crate) sampling_width: usize,
     /// Selects the kind of stratum protocol
     #[clap(long, default_value = "stratum2")]
     pub(crate) proto: String,

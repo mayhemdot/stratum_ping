@@ -10,7 +10,7 @@ use std::net::{SocketAddr, TcpStream};
 use std::time::Instant;
 use std::{net::ToSocketAddrs, time::Duration};
 
-const CONNECTION_ATTEMPTS_LIMIT: usize = 2000;
+const SAMPLING_WIDTH_LIMIT: usize = 2000;
 
 /// A specialized [Result] type for request operations.
 pub type Result<T> = std::result::Result<T, Error>;
@@ -19,7 +19,6 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub(crate) struct OutgoingRequest {
     opts: Opts,
     host: String,
-    addr: Option<SocketAddr>,
 }
 
 impl OutgoingRequest {
@@ -35,9 +34,12 @@ impl OutgoingRequest {
                 Some(host) => host.into(),
                 None => return Err(EmptyHost.into()),
             },
-            addr: opts.server.to_socket_addrs()?.next(),
             opts,
         })
+    }
+
+    pub(crate) fn address(&self) -> Result<SocketAddr> {
+        Ok(self.opts.server.to_socket_addrs()?.next().unwrap())
     }
 }
 
@@ -62,7 +64,7 @@ impl PingQuery<Duration> for OutgoingRequest {
             ..
         } = &self.opts;
 
-        let stream = TcpStream::connect(self.addr.unwrap())?;
+        let stream = TcpStream::connect(self.address()?)?;
         let timeout = Duration::from_secs(10);
 
         stream.set_write_timeout(Some(timeout))?;
@@ -115,7 +117,7 @@ where
 
     fn ping_multiple(&self) -> std::result::Result<Self::Output, Self::Err> {
         let Opts {
-            attempts,
+            sampling_width,
             tls,
             proto,
             login,
@@ -123,21 +125,20 @@ where
             ..
         } = &self.opts;
 
-        if *attempts > CONNECTION_ATTEMPTS_LIMIT {
+        if *sampling_width > SAMPLING_WIDTH_LIMIT {
             return Err(Error::InvalidNumberOfReplies);
         }
+        let addr = self.address()?;
+        let entry = PingInitEntry {
+            login: &login,
+            pass: &pass,
+            proto: &proto,
+            host: self.host.as_ref(),
+            tls: *tls,
+            addr,
+        };
 
-        println!(
-            "\n[PING] {:?} {:?} ({:?})\ntls: {}{}\n",
-            proto,
-            self.host,
-            self.addr.unwrap(),
-            tls,
-            match proto.as_ref() {
-                "stratum1" => format!(", credentials: {login}:{pass}"),
-                _ => String::new(),
-            }
-        );
+        println!("{}\n{}", Status::Init, entry);
 
         let (mut min, mut max, mut avg) =
             (Duration::from_secs(60 * 60), Duration::ZERO, Duration::ZERO);
@@ -145,14 +146,19 @@ where
         let mut success: usize = 0;
         let start = Instant::now();
 
-        for i in 0..*attempts {
-            let elapsed = self.ping()?;
+        println!("{}", Status::SendRecv);
+
+        for i in 0..*sampling_width {
+            let elapsed = match self.ping() {
+                Ok(t) => t,
+                Err(e) => {
+                    println!("[Failure]: {:?}", e);
+                    continue;
+                }
+            };
             println!(
                 "{:?} ({:?}): seq={}, time={:?}",
-                self.host,
-                self.addr.unwrap(),
-                i,
-                elapsed
+                self.host, addr, i, elapsed
             );
             if elapsed > max {
                 max = elapsed;
@@ -166,27 +172,121 @@ where
 
             std::thread::sleep(Duration::from_secs(1));
         }
-        println!("\n[PING statistics]");
-        let loss = 100 - (success as f64 / *attempts as f64 * 100_f64) as usize;
-        println!(
-            "{:<7} | {:>13} | {:>12} | {:>12} |",
-            "packets",
-            format!("{attempts} transmitted"),
-            format!("{success} received"),
-            format!(" {loss}% loss")
+
+        print!(
+            "{}\n{}",
+            Status::Statistics,
+            PingStateLine {
+                title: "packets",
+                col1: format!("{sampling_width} transmitted"),
+                col2: format!("{success} received"),
+                col3: format!("{}% loss", loss_percent(success, *sampling_width)),
+                col4: String::new(),
+            }
         );
 
         if success > 0 {
-            let avg = avg / success as u32;
             println!(
-                "{:<7} | {:>13} | {:>12} | {:>12} | {:<12}\n",
-                "time",
-                format!("min={min:.2?}"),
-                format!("avg={avg:.2?}"),
-                format!("max={max:.2?}"),
-                format!("elapsed={:.2?}", start.elapsed()),
+                "{}",
+                PingStateLine {
+                    title: "time",
+                    col1: format!("min={min:.2?}"),
+                    col2: format!("avg={:.2?}", avg / success as u32),
+                    col3: format!("max={max:.2?}"),
+                    col4: format!("time={:.2?}", start.elapsed()),
+                }
             );
         }
+        Ok(())
+    }
+}
+
+/// Column width used in formatting entries
+const COL_W: usize = 15;
+const COL_H: usize = 80;
+
+pub(crate) enum Status {
+    Init,
+    SendRecv,
+    Statistics,
+}
+
+pub(crate) struct PingInitEntry<'a> {
+    login: &'a str,
+    pass: &'a str,
+    proto: &'a str,
+    host: &'a str,
+    addr: SocketAddr,
+    tls: bool,
+}
+
+impl std::fmt::Display for Status {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let line = format!("{:\u{2500}<COL_H$}", "");
+        match self {
+            Status::Init => write!(f, "{}\n[Initialization]\n{}", line, line),
+            Status::SendRecv => write!(f, "{}\n[Send/Recv]\n{}", line, line),
+            Status::Statistics => write!(f, "{}\n[Statistics]\n{}", line, line),
+        }
+    }
+}
+impl std::fmt::Display for PingInitEntry<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{:w$} \u{2502} {}\n{:w$} \u{2502} {}\n{:w$} \u{2502} {}\n{:w$} \u{2502} {}\n{}",
+            "host",
+            self.host,
+            "addr",
+            self.addr,
+            "protocol",
+            self.proto,
+            "tls",
+            self.tls,
+            match self.proto.as_ref() {
+                "stratum1" => format!(
+                    "{:COL_W$} \u{2502} {}:{}",
+                    "credentials", self.login, self.pass
+                ),
+                _ => String::new(),
+            },
+            w = COL_W,
+        )
+    }
+}
+
+pub(crate) struct PingStateLine<'a, T>
+where
+    T: std::fmt::Display,
+{
+    title: &'a str,
+    col1: T,
+    col2: T,
+    col3: T,
+    col4: T,
+}
+
+#[allow(missing_docs)]
+pub fn loss_percent(success: usize, attempts: usize) -> usize {
+    100 - (success as f64 / attempts as f64 * 100_f64) as usize
+}
+
+impl<'a, T> std::fmt::Display for PingStateLine<'a, T>
+where
+    T: std::fmt::Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{:<w$} \u{2502} {:>w$} \u{2502} {:>w$} \u{2502} {:>w$} \u{2502} {:<w$}\n",
+            self.title,
+            self.col1,
+            self.col2,
+            self.col3,
+            self.col4,
+            w = COL_W
+        )?;
+
         Ok(())
     }
 }
