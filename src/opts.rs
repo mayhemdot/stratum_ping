@@ -20,4 +20,7 @@ pub struct Opts {
     pub(crate) proto: String,
     #[clap(long, parse(try_from_str), default_value_t = false)]
     pub(crate) tls: bool,
+    /// After this time (seconds), the client can close this connection.
+    #[clap(long, default_value_t = 5)]
+    pub(crate) timeout: u64,
 }
