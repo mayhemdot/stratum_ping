@@ -27,10 +27,8 @@ impl OutgoingRequest {
     /// - Looking up an address IP end point
     pub(crate) fn new(opts: Opts) -> Result<Self> {
         use ParseUrlError::*;
-
-        let mut server = opts.server.split_terminator(':');
         Ok(Self {
-            host: match server.next() {
+            host: match opts.server.split_terminator(':').next() {
                 Some(host) => host.into(),
                 None => return Err(EmptyHost.into()),
             },
@@ -61,11 +59,12 @@ impl PingQuery<Duration> for OutgoingRequest {
             login,
             pass,
             tls,
+            timeout,
             ..
         } = &self.opts;
 
         let stream = TcpStream::connect(self.address()?)?;
-        let timeout = Duration::from_secs(10);
+        let timeout = Duration::from_secs(*timeout);
 
         stream.set_write_timeout(Some(timeout))?;
         stream.set_read_timeout(Some(timeout))?;
@@ -122,23 +121,29 @@ where
             proto,
             login,
             pass,
+            timeout,
             ..
         } = &self.opts;
 
         if *sampling_width > SAMPLING_WIDTH_LIMIT {
             return Err(Error::InvalidNumberOfReplies);
         }
-        let addr = self.address()?;
-        let entry = PingInitEntry {
-            login: &login,
-            pass: &pass,
-            proto: &proto,
-            host: self.host.as_ref(),
-            tls: *tls,
-            addr,
-        };
 
-        println!("{}\n{}", Status::Init, entry);
+        let addr = self.address()?;
+
+        println!(
+            "{}\n{}",
+            Status::Init,
+            PingInitEntry {
+                login: &login,
+                pass: &pass,
+                proto: &proto,
+                host: &self.host,
+                tls: *tls,
+                timeout: *timeout,
+                addr,
+            }
+        );
 
         let (mut min, mut max, mut avg) =
             (Duration::from_secs(60 * 60), Duration::ZERO, Duration::ZERO);
@@ -152,7 +157,7 @@ where
             let elapsed = match self.ping() {
                 Ok(t) => t,
                 Err(e) => {
-                    println!("[Failure]: {:?}", e);
+                    println!("[Error]: {:?}", e);
                     continue;
                 }
             };
@@ -178,9 +183,9 @@ where
             Status::Statistics,
             PingStateLine {
                 title: "packets",
-                col1: format!("{sampling_width} transmitted"),
-                col2: format!("{success} received"),
-                col3: format!("{}% loss", loss_percent(success, *sampling_width)),
+                col1: format!("transmitted={sampling_width}"),
+                col2: format!("received={success}"),
+                col3: format!("failure={} ", *sampling_width - success),
                 col4: String::new(),
             }
         );
@@ -193,7 +198,7 @@ where
                     col1: format!("min={min:.2?}"),
                     col2: format!("avg={:.2?}", avg / success as u32),
                     col3: format!("max={max:.2?}"),
-                    col4: format!("time={:.2?}", start.elapsed()),
+                    col4: format!("total={:.2?}", start.elapsed()),
                 }
             );
         }
@@ -218,41 +223,7 @@ pub(crate) struct PingInitEntry<'a> {
     host: &'a str,
     addr: SocketAddr,
     tls: bool,
-}
-
-impl std::fmt::Display for Status {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let line = format!("{:\u{2500}<COL_H$}", "");
-        match self {
-            Status::Init => write!(f, "{}\n[Initialization]\n{}", line, line),
-            Status::SendRecv => write!(f, "{}\n[Send/Recv]\n{}", line, line),
-            Status::Statistics => write!(f, "{}\n[Statistics]\n{}", line, line),
-        }
-    }
-}
-impl std::fmt::Display for PingInitEntry<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{:w$} \u{2502} {}\n{:w$} \u{2502} {}\n{:w$} \u{2502} {}\n{:w$} \u{2502} {}\n{}",
-            "host",
-            self.host,
-            "addr",
-            self.addr,
-            "protocol",
-            self.proto,
-            "tls",
-            self.tls,
-            match self.proto.as_ref() {
-                "stratum1" => format!(
-                    "{:COL_W$} \u{2502} {}:{}",
-                    "credentials", self.login, self.pass
-                ),
-                _ => String::new(),
-            },
-            w = COL_W,
-        )
-    }
+    timeout: u64,
 }
 
 pub(crate) struct PingStateLine<'a, T>
@@ -264,11 +235,6 @@ where
     col2: T,
     col3: T,
     col4: T,
-}
-
-#[allow(missing_docs)]
-pub fn loss_percent(success: usize, attempts: usize) -> usize {
-    100 - (success as f64 / attempts as f64 * 100_f64) as usize
 }
 
 impl<'a, T> std::fmt::Display for PingStateLine<'a, T>
@@ -288,5 +254,42 @@ where
         )?;
 
         Ok(())
+    }
+}
+
+impl std::fmt::Display for Status {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let line = format!("{:\u{2500}<COL_H$}", "");
+        match self {
+            Status::Init => write!(f, "{}\n[Initialization]\n{}", line, line),
+            Status::SendRecv => write!(f, "{}\n[Send/Recv]\n{}", line, line),
+            Status::Statistics => write!(f, "{}\n[Statistics]\n{}", line, line),
+        }
+    }
+}
+impl std::fmt::Display for PingInitEntry<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{:w$} \u{2502} {}\n{:w$} \u{2502} {}\n{:w$} \u{2502} {}\n{:w$} \u{2502} {} sec\n{:w$} \u{2502} {}{}",
+            "host",
+            self.host,
+            "addr",
+            self.addr,
+            "protocol",
+            self.proto,
+            "timeout",
+            self.timeout,
+            "tls",
+            self.tls,
+            match self.proto.as_ref() {
+                "stratum1" => format!(
+                    "\n{:COL_W$} \u{2502} {}:{}",
+                    "credentials", self.login, self.pass
+                ),
+                _ => String::new(),
+            },
+            w = COL_W,
+        )
     }
 }
