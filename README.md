@@ -6,7 +6,6 @@
 
 RTD is defined as a metric that measures in milliseconds the amount of time it takes for a data packet to be sent plus the amount of time it takes for acknowledgement of that signal to be received.
 
-#### 💿 Installation and Quick Start
 #### 🚀 Usage
 
 Here are a few brief examples to get you started
