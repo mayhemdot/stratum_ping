@@ -1,10 +1,10 @@
 ## stratum_ping
 
->**Measuring round-trip delay time (RTD) using Stratum protocol**
+>**Measuring round-trip delay time (RTD) using the Stratum protocol**
 
 #### 🤔 About
 
-RTD is defined as a metric that measures in milliseconds the amount of time it takes for a data packet to be sent plus the amount of time it takes for acknowledgement of that signal to be received.
+A mining-specific approach when we measure the amount of time required to connect and successfully pass authentication using the Stratum protocol.
 
 #### 🚀 Usage
 
