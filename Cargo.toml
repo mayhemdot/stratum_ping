@@ -1,6 +1,6 @@
 [package]
 categories = ["command-line-utilities"]
-description = "Measuring round-trip delay time (RTD) using Stratum protocol."
+description = "Measuring round-trip delay time (RTD) using the Stratum protocol."
 edition = "2021"
 homepage = "https://github.com/mayhemdot/stratum_ping"
 keywords = ["stratum", "latency", "RTD", "RTT", "delay"]
@@ -10,7 +10,7 @@ repository = "https://github.com/mayhemdot/stratum_ping"
 version = "0.1.0"
 
 [dependencies]
-clap = {version = "3.1.6", features = ["derive"]}
+clap = { version = "3.1.6", features = ["derive"] }
 miniserde = "0.1.24"
 native-tls = "0.2.8"
 
