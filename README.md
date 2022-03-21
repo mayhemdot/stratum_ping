@@ -17,5 +17,5 @@ Here are a few brief examples to get you started
 or 
 
 ``` 
-./stratum_ping  --server ethash.poolbinance.com:3333 --proto "stratum1" --w 10 --login admin --pass 1234
+./stratum_ping  --server ethash.poolbinance.com:3333 --proto "stratum1" --w 10 --u admin --pass 1234
 ```
