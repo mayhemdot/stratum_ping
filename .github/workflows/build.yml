@@ -1,86 +1,66 @@
-name: Rust
+name: build
 
 on:
   push:
     branches: [ main ]
-    
 jobs:
   build-nix:
+    env:
+      IN_PIPELINE: true
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        type: [ubuntu-x64, ubuntu-x86, armv7, aarch64]
+        type: [ubuntu-x64]
         include:
           - type: ubuntu-x64
             os: ubuntu-latest
-            target: x86_64-unknown-linux-musl
-            name: x86_64-linux-stratum_ping
-            path: target/x86_64-unknown-linux-musl/release/stratum_ping
-
+            target: x86_64-unknown-linux-gnu
+            name: x86_64-linux-stratum_ping 
+            path: target/x86_64-unknown-linux-gnu/release/stratum_ping
+            pkg_config_path: /usr/lib/x86_64-linux-gnu/pkgconfig
           - type: ubuntu-x86
             os: ubuntu-latest
-            target: i686-unknown-linux-musl
+            target: i686-unknown-linux-gnu
             name: x86-linux-stratum_ping
-            path: target/i686-unknown-linux-musl/release/stratum_ping
-          
-          - type: armv7
-            os: ubuntu-latest
-            target: armv7-unknown-linux-gnueabihf
-            name: armv7-stratum_ping
-            path: target/armv7-unknown-linux-gnueabihf/release/stratum_ping
-            
-          - type: aarch64
-            os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
-            name: aarch64-stratum_ping
-            path: target/aarch64-unknown-linux-gnu/release/stratum_ping
-        
+            path: target/i686-unknown-linux-gnu/release/stratum_ping
+            pkg_config_path: /usr/lib/i686-linux-gnu/pkgconfig
     steps:
       - uses: actions/checkout@v2
-      - name: Install System Dependencies
-        run: |
-          env
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libssl-dev gcc-arm-linux-gnueabihf gcc-aarch64-linux-gnu
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: nightly
           target: ${{ matrix.target }}
           override: true
       - uses: actions-rs/cargo@v1
-        with:
-          use-cross: true
-          command: build
-          args: --release --target=${{ matrix.target }}
+        env:
+         TARGET_CC: clang
+         PKG_CONFIG_PATH: ${{ matrix.pkg_config_path }}
+         OPENSSL_INCLUDE_DIR: /usr/include/openssl/
+         OPENSSL_DIR: /usr/lib/ssl/
+       
+      - name: Check a version
+        run: lsb_release -d
+      - name: Install System Dependencies
+        run: sudo apt-get update && sudo apt-get install pkg-config libssl-dev gcc-arm-linux-gnueabihf gcc-aarch64-linux-gnu clang -y
+      
+      - name: Building
+        run: cargo build --release --target=${{ matrix.target }}
       - name: Strip symbols from binary
         run: |
           strip -s ${{ matrix.path }} || arm-linux-gnueabihf-strip -s ${{ matrix.path }} || aarch64-linux-gnu-strip -s ${{ matrix.path }}
       - name: Build tar.gz for homebrew installs
         if: matrix.type == 'ubuntu-x64'
         run: |
-          tar czf ${{ matrix.name }}.tar.gz -C target/x86_64-unknown-linux-musl/release stratum_ping
-      - uses: actions/upload-artifact@v2
+          tar czf ${{ matrix.name }}.tar.gz -C target/x86_64-unknown-linux-gnu/release stratum_ping
+      - uses: actions/upload-artifact@master
         with:
           name: ${{ matrix.name }}
           path: ${{ matrix.path }}
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@master
         if: matrix.type == 'ubuntu-x64'
         with:
           name: ${{ matrix.name }}.tar.gz
           path: ${{ matrix.name }}.tar.gz
-  build-deb:
-    needs: [build-nix]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@master
-      - name: Deb Build
-        uses: ebbflow-io/cargo-deb-amd64-ubuntu@1.0
-      - name: Upload Deb Artifact
-        uses: actions/upload-artifact@v2
-        with:
-          name: stratum_ping_amd64.deb
-          path: ./target/x86_64-unknown-linux-musl/debian/*
-    
   build-windows:
       env:
         IN_PIPELINE: true
@@ -128,6 +108,9 @@ jobs:
           target: x86_64-apple-darwin
           override: true
       - uses: actions-rs/cargo@v1
+        env:
+          OPENSSL_DIR: /usr/lib/ssl
+          OPENSSL_LIB_DIR: /usr/lib/ssl
         with:
           use-cross: true
           command: build
