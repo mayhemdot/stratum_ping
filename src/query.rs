@@ -12,7 +12,7 @@ pub(crate) struct QRequest<T> {
 impl<T> QRequest<T> {
     pub fn new(id: usize, method: Method, params: Vec<T>) -> Self {
         Self {
-            jsonrpc: "2.0".into(),
+            jsonrpc: "2.0".to_string(),
             id,
             method: format!("{}", method),
             params,

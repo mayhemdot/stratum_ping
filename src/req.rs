@@ -9,6 +9,7 @@ use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::time::Instant;
 use std::{net::ToSocketAddrs, time::Duration};
+use log::{debug, error};
 
 const SAMPLING_WIDTH_LIMIT: usize = 2000;
 
@@ -94,16 +95,23 @@ impl PingQuery<Duration> for OutgoingRequest {
             _ => return Err(Error::InvalidStratumType),
         };
 
-        let json_string: String = json::to_string(&req_buf);
-        let mut json_buf = json_string.into_bytes();
-        json_buf.push(10); // \n
+        let mut send_msg: String = json::to_string(&req_buf);
+        send_msg.push('\n' as char);
+
         let mut buf = vec![0u8; 512];
+        debug!("{}", &send_msg);
+
         let start = Instant::now();
+        conn.write_all(send_msg.as_bytes())?;
 
-        conn.write_all(&json_buf)?;
-        conn.read(&mut buf)?;
+        let num = conn.read(&mut buf)?;
 
-        Ok(start.elapsed())
+        let elapsed = start.elapsed();
+
+        let recv_msg = String::from_utf8_lossy(&buf[..num]);
+        debug!("{}", &recv_msg);
+
+        Ok(elapsed)
     }
 }
 
@@ -157,7 +165,7 @@ where
             let elapsed = match self.ping() {
                 Ok(t) => t,
                 Err(e) => {
-                    println!("[Error]: {:?}", e);
+                    error!("[Error]: {:?}", e);
                     continue;
                 }
             };
