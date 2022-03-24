@@ -10,7 +10,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        type: [ubuntu-x64, ubuntu-x86]
+        type: [ubuntu-x64]
         include:
           - type: ubuntu-x64
             os: ubuntu-latest
@@ -18,12 +18,6 @@ jobs:
             name: x86_64-linux-stratum_ping 
             path: target/x86_64-unknown-linux-gnu/release/stratum_ping
             pkg_config_path: /usr/lib/x86_64-linux-gnu/pkgconfig
-          - type: ubuntu-x86
-            os: ubuntu-latest
-            target: i686-unknown-linux-gnu
-            name: x86-linux-stratum_ping
-            path: target/i686-unknown-linux-gnu/release/stratum_ping
-            pkg_config_path: /usr/lib/i686-linux-gnu/pkgconfig
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -37,11 +31,8 @@ jobs:
          PKG_CONFIG_PATH: ${{ matrix.pkg_config_path }}
          OPENSSL_INCLUDE_DIR: /usr/include/openssl/
          OPENSSL_DIR: /usr/lib/ssl/
-       
-      - name: Check a version
-        run: lsb_release -d
       - name: Install System Dependencies
-        run: sudo apt-get update -y && sudo apt-get install pkg-config libssl-dev gcc-arm-linux-gnueabihf gcc-aarch64-linux-gnu clang -y
+        run: sudo apt-get update -y && sudo apt-get install pkg-config libssl-dev clang -y
       - name: Building
         run: cargo build --release --target=${{ matrix.target }}
       - name: Strip symbols from binary
