@@ -40,10 +40,10 @@ jobs:
        
       - name: Check a version
         run: lsb_release -d
-      - name: Install System Dependencies && Building
-        run: | 
-          sudo apt-get update && sudo apt-get install pkg-config libudev-dev libssl-dev gcc-arm-linux-gnueabihf gcc-aarch64-linux-gnu clang -y
-          cargo build --release --target=${{ matrix.target }}
+      - name: Install System Dependencies
+        run: sudo apt-get update -y && sudo apt-get install pkg-config libssl-dev gcc-arm-linux-gnueabihf gcc-aarch64-linux-gnu clang -y
+      - name: Building
+        run: cargo build --release --target=${{ matrix.target }}
       - name: Strip symbols from binary
         run: |
           strip -s ${{ matrix.path }} || arm-linux-gnueabihf-strip -s ${{ matrix.path }} || aarch64-linux-gnu-strip -s ${{ matrix.path }}
