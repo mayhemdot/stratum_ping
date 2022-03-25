@@ -13,8 +13,8 @@ pub struct Opts {
     #[clap(short = 'p', long, default_value = "x")]
     pub(crate) pass: String,
     /// The number of request that determine the average response time.
-    #[clap(short, long, default_value_t = 5)]
-    pub(crate) sampling_width: usize,
+    #[clap(short = 's', long, default_value_t = 5)]
+    pub(crate) samples: usize,
     /// Selects the kind of stratum protocol
     #[clap(long, default_value = "stratum2")]
     pub(crate) proto: String,

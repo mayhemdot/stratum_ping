@@ -14,7 +14,7 @@ pub enum Error {
     /// A standard `native_tls` error occurred.
     TLS(native_tls::Error),
     /// Error occurs when the server are unable to establish a secure connection.
-    HandshakeTLSOverTCP(native_tls::HandshakeError<TcpStream>),
+    HandshakeTLSOverTCP(Box<native_tls::HandshakeError<TcpStream>>),
     /// An error which can be returned when parsing an integer.
     ParseInt(std::num::ParseIntError),
 }
@@ -55,7 +55,7 @@ impl From<native_tls::Error> for Error {
 
 impl From<native_tls::HandshakeError<TcpStream>> for Error {
     fn from(e: native_tls::HandshakeError<TcpStream>) -> Self {
-        Error::HandshakeTLSOverTCP(e)
+        Error::HandshakeTLSOverTCP(Box::new(e))
     }
 }
 impl Display for ParseUrlError {

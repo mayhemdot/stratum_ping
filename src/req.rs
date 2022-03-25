@@ -5,13 +5,14 @@ use super::query::{Method, PingMultQuery, PingQuery, QRequest};
 use miniserde::json;
 use native_tls::TlsConnector;
 
+use log::{debug, error};
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::time::Instant;
 use std::{net::ToSocketAddrs, time::Duration};
-use log::{debug, error};
 
-const SAMPLING_WIDTH_LIMIT: usize = 2000;
+/// A samples width
+const SAMPLES_LIMIT: usize = 2000;
 
 /// A specialized [Result] type for request operations.
 pub type Result<T> = std::result::Result<T, Error>;
@@ -96,7 +97,7 @@ impl PingQuery<Duration> for OutgoingRequest {
         };
 
         let mut send_msg: String = json::to_string(&req_buf);
-        send_msg.push('\n' as char);
+        send_msg.push('\n');
 
         let mut buf = vec![0u8; 512];
         debug!("{}", &send_msg);
@@ -124,7 +125,7 @@ where
 
     fn ping_multiple(&self) -> std::result::Result<Self::Output, Self::Err> {
         let Opts {
-            sampling_width,
+            samples,
             tls,
             proto,
             login,
@@ -133,7 +134,7 @@ where
             ..
         } = &self.opts;
 
-        if *sampling_width > SAMPLING_WIDTH_LIMIT {
+        if *samples > SAMPLES_LIMIT {
             return Err(Error::InvalidNumberOfReplies);
         }
 
@@ -143,9 +144,9 @@ where
             "{}\n{}",
             Status::Init,
             PingInitEntry {
-                login: &login,
-                pass: &pass,
-                proto: &proto,
+                login,
+                pass,
+                proto,
                 host: &self.host,
                 tls: *tls,
                 timeout: *timeout,
@@ -161,7 +162,7 @@ where
 
         println!("{}", Status::SendRecv);
 
-        for i in 0..*sampling_width {
+        for i in 0..*samples {
             let elapsed = match self.ping() {
                 Ok(t) => t,
                 Err(e) => {
@@ -186,14 +187,14 @@ where
             std::thread::sleep(Duration::from_secs(1));
         }
 
-        print!(
+        println!(
             "{}\n{}",
             Status::Statistics,
             PingStateLine {
                 title: "packets",
-                col1: format!("transmitted={sampling_width}"),
+                col1: format!("transmitted={samples}"),
                 col2: format!("received={success}"),
-                col3: format!("failure={} ", *sampling_width - success),
+                col3: format!("failure={} ", *samples - success),
                 col4: String::new(),
             }
         );
@@ -250,18 +251,16 @@ where
     T: std::fmt::Display,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
+        Ok(write!(
             f,
-            "{:<w$} \u{2502} {:>w$} \u{2502} {:>w$} \u{2502} {:>w$} \u{2502} {:<w$}\n",
+            "{:<w$} \u{2502} {:>w$} \u{2502} {:>w$} \u{2502} {:>w$} \u{2502} {:<w$}",
             self.title,
             self.col1,
             self.col2,
             self.col3,
             self.col4,
             w = COL_W
-        )?;
-
-        Ok(())
+        )?)
     }
 }
 
@@ -290,7 +289,7 @@ impl std::fmt::Display for PingInitEntry<'_> {
             self.timeout,
             "tls",
             self.tls,
-            match self.proto.as_ref() {
+            match self.proto {
                 "stratum1" => format!(
                     "\n{:COL_W$} \u{2502} {}:{}",
                     "credentials", self.login, self.pass
